@@ -12,37 +12,29 @@ library(dplyr)
 library(ggplot2)
 library(shiny)
 library(readxl)
-library(psych)
+
 
 
 #----------------------------------UI---------------------------------
 
 ui = fluidPage(
-  titlePanel("Excel Test"),
+  titlePanel("Luxury Homes International"),
   sidebarLayout(
     sidebarPanel(
       fileInput('file1', 'Choose xlsx file', accept = c(".xlsx")), 
       textInput("skipInput", "Skip Rows", value = "0"),
       textInput("PreviewRows", "Rows to Preview", value = "5")
     ),
-  mainPanel(
-    tabsetPanel(
-    tabPanel("Preview", tableOutput("contents")),
-    tabPanel("Summary Graph", plotOutput("summary")) 
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Preview", tableOutput("contents")),
+        tabPanel("Summary Graph", plotOutput("summary")) 
       )
     )
   )
 )
 
-  # tabsetPanel(
-  #   id = "theTabs",
-  #   tabPanel("Inputs", fileInput('file1', 'Choose xlsx file', accept = c(".xlsx")), 
-  #            textInput("skipInput", "Skip Rows", value = "0")),
-  #   tabPanel("Preview", tableOutput("contents"),
-  #            value = "Summary"),
-  #   tabPanel("Stats", tableOutput("stat"),
-  #            value = "Stats")
-  # ))
+
 
 #----------------------------------Server---------------------------------
 server = function(input, output, session){
@@ -69,9 +61,9 @@ server = function(input, output, session){
     df1 <- df %>%
       group_by(Name) %>%
       summarize(Total = sum(Dollars))
-   
+    
     df1
-
+    
   })
   
   output$contents <- renderTable({
@@ -84,12 +76,11 @@ server = function(input, output, session){
   
   output$summary <- renderPlot({
     
-    ggplot(df1, aes(x = Name, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+    ggplot(entireTable(), aes(x = Name, y = Total))+geom_bar(stat="identity", fill="steelblue")+
       ggtitle("Sales") + labs(x = "Agent Names", y = "Total Sales")
-#https://ggplot2.tidyverse.org/reference/labs.html
+    #https://ggplot2.tidyverse.org/reference/labs.html
     
   })
 }
 # Run the application 
 shinyApp(ui = ui, server = server)
-

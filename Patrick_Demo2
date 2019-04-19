@@ -1,0 +1,112 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+library(shiny)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+library(readxl)
+library(janitor)
+
+
+
+#----------------------------------UI---------------------------------
+
+ui = fluidPage(
+  titlePanel("Luxury Homes International"),
+  sidebarLayout(
+    sidebarPanel(
+      fileInput('file1', 'Choose xlsx file', accept = c(".xlsx")), 
+      textInput("skipInput", "Skip Rows", value = "0"),
+      textInput("PreviewRows", "Rows to Preview", value = "5")
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Preview", tableOutput("contents")),
+        tabPanel("Total Sales Graph", plotOutput("summary")),
+        tabPanel("Number of Sales Graph", plotOutput("summaryCount"))
+      )
+    )
+  )
+)
+
+
+
+#----------------------------------Server---------------------------------
+server = function(input, output, session){
+  
+  previewTable <- reactive({
+    req(input$file1)
+    
+    inFile <- input$file1
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    head(read_excel(inFile$datapath, 1,
+                    skip = skipNum),prevnum)
+  })
+  
+  entireTable <- reactive({
+    req(input$file1)
+    
+    inFile <- input$file1
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    
+    df <- read_excel(inFile$datapath, 1,skip = skipNum)
+    df<- clean_names(df)
+    df1 <- df %>%
+      group_by(lhi_agent) %>%
+      summarize(Total = sum(price))
+    df1
+
+  })
+  
+  entireTableSalesNumber <- reactive({
+    req(input$file1)
+    
+    inFile <- input$file1
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    df <- read_excel(inFile$datapath, 1,skip = skipNum)
+    df<- clean_names(df)
+    df2 <- df %>%
+      group_by(lhi_agent) %>%
+      summarize(Total = n())
+    df2
+  })
+  
+  output$contents <- renderTable({
+    previewTable()
+  })
+  
+  output$contents1 <- renderTable({
+    entireTable()
+  })
+  
+  output$summary <- renderPlot({
+    
+    ggplot(entireTable(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales") + coord_flip()
+    #https://ggplot2.tidyverse.org/reference/labs.html
+    
+  })
+  
+  output$summaryCount <- renderPlot({
+    
+    ggplot(entireTableSalesNumber(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales")
+    #https://ggplot2.tidyverse.org/reference/labs.html
+    
+  })
+}
+# Run the application 
+shinyApp(ui = ui, server = server)

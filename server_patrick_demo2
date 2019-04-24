@@ -1,0 +1,219 @@
+library(shiny)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+library(readxl)
+library(janitor)
+library(tidyverse)
+library(readr)
+ 
+#Todo list is in the UI
+
+
+#----------------------------------Server---------------------------------
+server = function(input, output, session){
+  
+  #read in the 2 files for now.  Then create an input for them. 
+  buyer <- read_csv("C:/Users/Justin/Downloads/Buyer Side Sales 2018.csv", 
+                                    col_names = FALSE)
+  seller <- read_csv("C:/Users/Justin/Downloads/Seller Side Sales 2018.csv", 
+                                     col_names = FALSE)
+  #Add in the logic to separate the buyer and seller
+  buyer$Side <- c("Buyer")
+  seller$Side <- c("Seller")
+  
+  #Create the empty Df that will hold the input file
+  values <- reactiveValues()
+  
+  #creates the df to hold the buyer file
+  values$dfglobalb <- data.frame()
+  
+  #creates the df to hold the seller file
+  values$dfglobals <- data.frame()
+  
+  #creates the df that will hold both files together
+  values$dfglobal <- data.frame()
+  
+  #Create an event that will listen for the confirm button.
+  #This will create the global DF for manipulation for other DFs
+  newEntry <- observeEvent(input$confirm, {
+    
+    #Bind the buyers temp table
+    values$dfglobalb <- rbind(values$dfglobalb,entireTableb())
+    
+    #Bind the sellers temp table
+    values$dfglobals <- rbind(values$dfglobals,entireTables())
+    
+    #Bind the global temp table
+    values$dfglobal <- rbind(values$dfglobalb,values$dfglobals)
+   
+  })
+  
+  
+  #Create the preview table for the createtable call
+  #Buyer table
+  previewTableb <- reactive({
+    req(input$file1)
+    
+    inFile <- input$file1
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    head(read_csv(inFile$datapath,col_names = FALSE,
+                    skip = skipNum),prevnum)
+  })
+  
+  #Create the preview table for the createtable call
+  #Seller table
+  previewTables <- reactive({
+    req(input$file2)
+    
+    inFile <- input$file2
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    head(read_csv(inFile2$datapath,col_names = FALSE,
+                    skip = skipNum),prevnum)
+  })
+  
+  #Function that creates the Df from the input file - buyer table
+  entireTableb <- reactive({
+    req(input$file1)
+    
+    inFile <- input$file1
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    
+    dfb <- read_csv(inFile$datapath, col_names = FALSE,skip = skipNum)
+    #Create Df names
+    names(dfb) <- c("close","address","street","price","buyer_company", "buyer_agent"
+                     ,"seller_agent","seller_company","x9","x10")
+   
+     buyerlist <- data.frame()
+    (for(i in 1:nrow(dfb)){
+      if(strcmp(dfb$buyer_company[i],dfb$seller_company[i])){
+        buyerlist[i,1] <- c("Dual")
+      } else{
+        buyerlist[i,1] <- c("")
+      }
+    })
+    dfb$note <- buyerlist
+    dfb$side <- c("Buyer")
+    
+    
+    #Not needed in Demo2 since we are taking the file from the source
+    # dfb <- dfb %>%
+    #   filter(lhi_agent != 'TOTAL') %>%
+    #   filter(side != 'NA')
+    
+    dfb
+    
+  })
+  
+  #Function that creates the Df from the input file - Seller table
+  entireTables <- reactive({
+    req(input$file2)
+    
+    inFile <- input$file2
+    skipNum <- as.numeric(input$skipInput)
+    prevnum <- as.numeric(input$PreviewRows)
+    
+    
+    dfs <- read_csv(inFile$datapath, col_names = FALSE,skip = skipNum)
+    names(dfs) <- c("close","address","street","price","buyer_company", "buyer_agent"
+                    ,"seller_agent","seller_company","x9","x10")
+    
+    sellerlist <- data.frame()
+    (for(i in 1:nrow(dfs)){
+      if(strcmp(dfs$buyer_company[i],dfs$seller_company[i])){
+        sellerlist[i,1] <- c("Dual")
+      } else{
+        sellerlist[i,1] <- c("")
+      }
+    })
+    
+    dfs$note <- sellerlist
+    dfs$side <- c("Seller")
+    
+    #deleted filter expressions
+    
+    dfs
+    
+  })
+  
+  #Create the DF that summarizes the agent sales by dollar of sales  
+  dollarsales <- reactive({
+    
+    df1 <- values$dfglobal %>%
+      group_by(lhi_agent) %>%
+      summarize(Total = sum(price)) %>%
+      mutate(lhi_agent= fct_reorder(lhi_agent, Total))
+    
+    df1
+    
+  })
+  
+  #Create the DF that summarizes the agent sales by number of sales  
+  numberofsales <- reactive({
+    
+    df2 <- values$dfglobal %>%
+      group_by(lhi_agent) %>%
+      summarize(Total = n())
+    df2
+    
+  })
+  
+  #Create the Df that summarizes the agent sales by the side they are on
+  sidesales <- reactive({
+    
+    df3 <- values$dfglobal %>%
+      group_by(side) %>%
+      summarize(Total = n())
+    df3
+    
+  })
+  
+  #This helps to display part of the file
+  output$contents <- renderTable({
+    previewTableb()
+  })
+  
+  #This will display the entire file
+  #----------------------------------------------Only needed for testing purposes-----------------
+  output$contents1 <- renderTable({
+    
+    values$dfglobal
+    
+  })
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^Only needed for testing purpose^^^^^^^^^^^^^^^^^^^^
+  
+  
+  
+  #This plots the total dollars of sales by agent
+  output$summary <- renderPlot({
+    
+    ggplot(dollarsales(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales") + coord_flip()
+    #https://ggplot2.tidyverse.org/reference/labs.html
+    
+  })
+  
+  #This plots the Number of sales by Agent
+  output$summaryCount <- renderPlot({
+    
+    ggplot(numberofsales(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales") + coord_flip()
+    
+  })
+  
+  #This plots the number of sales by side
+  output$summaryside <- renderPlot({
+    
+    ggplot(sidesales(), aes(x = side, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales")
+    
+  })
+}
+# Run the application 
+#shinyApp(ui = ui, server = server)

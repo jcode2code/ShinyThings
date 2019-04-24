@@ -1,0 +1,59 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+#Version PD Demo - Demo file
+#Version PD Demo1 - Patrick's final converted file
+#Version PD Demo2 - The 2 raw files that Patrick downloads
+#Add in the columns patrick added
+#Put the df together
+#make a summary page
+#create graphs
+
+
+library(shiny)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+library(readxl)
+library(janitor)
+library(pracma)
+
+##------------------Notes----------------------------------
+#Filter out total and NAS
+
+#Visually
+#Group sales by the month (See what is the most popular month)
+#Should we do a heat map for the address?
+#Should we do a time between sales by agent or as a whole?
+
+
+#----------------------------------UI---------------------------------
+
+ui = fluidPage(
+  titlePanel("LHI"), #Check with patrick on what he wants displayed
+  #titlePanel("Luxury Homes International"), 
+  sidebarLayout(
+    sidebarPanel(
+      fileInput('file1', 'select buyer file', accept = c(".csv")),
+      fileInput('file2', 'selct seller file', accept = c(".csv")),
+      textInput("skipInput", "Skip Rows", value = "0"),
+      textInput("PreviewRows", "Rows to Preview", value = "5"),
+      actionButton("confirm", "Save Data")
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Preview", tableOutput("contents")),
+        tabPanel("Entirefile", tableOutput("contents1")),
+        tabPanel("Total Sales Graph", plotOutput("summary")),
+        tabPanel("Number of Sales Graph", plotOutput("summaryCount")),
+        tabPanel("Number of Sales by Side", plotOutput("summaryside"))
+      )
+    )
+  )
+)
+

@@ -21,16 +21,18 @@ library(ggplot2)
 library(shiny)
 library(readxl)
 library(janitor)
+library(DT)
 library(pracma)
 
 ##------------------Notes----------------------------------
-#Filter out total and NAS
 
 #Visually
 #Group sales by the month (See what is the most popular month)
 #Should we do a heat map for the address?
 #Should we do a time between sales by agent or as a whole?
 
+##------------------TODO----------------------------------
+# Export the Data and the graphs?
 
 #----------------------------------UI---------------------------------
 
@@ -39,19 +41,20 @@ ui = fluidPage(
   #titlePanel("Luxury Homes International"), 
   sidebarLayout(
     sidebarPanel(
-      fileInput('file1', 'select buyer file', accept = c(".csv")),
-      fileInput('file2', 'selct seller file', accept = c(".csv")),
+      fileInput('file1', 'Select Buyer File', accept = c(".csv")),
+      fileInput('file2', 'Select Seller File', accept = c(".csv")),
       textInput("skipInput", "Skip Rows", value = "0"),
       textInput("PreviewRows", "Rows to Preview", value = "5"),
-      actionButton("confirm", "Save Data")
+      actionButton("confirm", "View Data and Graphs")
     ),
     mainPanel(
       tabsetPanel(
         tabPanel("Preview", tableOutput("contents")),
         tabPanel("Entirefile", tableOutput("contents1")),
-        tabPanel("Total Sales Graph", plotOutput("summary")),
+        tabPanel("Total Sales Graph", plotlyOutput("summary")),
         tabPanel("Number of Sales Graph", plotOutput("summaryCount")),
-        tabPanel("Number of Sales by Side", plotOutput("summaryside"))
+        tabPanel("Number of Sales by Side", plotOutput("summaryside")),
+        tabPanel("Number of Sales by Month", plotlyOutput("summarymonth"), plotlyOutput("summarydollarmonths"))
       )
     )
   )

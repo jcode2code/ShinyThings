@@ -1,27 +1,20 @@
 library(shiny)
 library(dplyr)
 library(ggplot2)
+library(plotly)
 library(shiny)
 library(readxl)
 library(janitor)
 library(tidyverse)
 library(readr)
+library(scales)
  
 #Todo list is in the UI
 
 
 #----------------------------------Server---------------------------------
 server = function(input, output, session){
-  
-  #read in the 2 files for now.  Then create an input for them. 
-  buyer <- read_csv("C:/Users/Justin/Downloads/Buyer Side Sales 2018.csv", 
-                                    col_names = FALSE)
-  seller <- read_csv("C:/Users/Justin/Downloads/Seller Side Sales 2018.csv", 
-                                     col_names = FALSE)
-  #Add in the logic to separate the buyer and seller
-  buyer$Side <- c("Buyer")
-  seller$Side <- c("Seller")
-  
+
   #Create the empty Df that will hold the input file
   values <- reactiveValues()
   
@@ -46,7 +39,15 @@ server = function(input, output, session){
     
     #Bind the global temp table
     values$dfglobal <- rbind(values$dfglobalb,values$dfglobals)
-   
+    
+    #Convert into Date format
+    #values$dfglobal$close <- as.Date(values$dfglobal$close, "%m/%d/%Y")
+    
+    #Order the DF
+    values$dfglobal <- values$dfglobal[order(values$dfglobal$close, values$dfglobal$lhi_agent),]
+    
+    
+    
   })
   
   
@@ -86,10 +87,15 @@ server = function(input, output, session){
     
     
     dfb <- read_csv(inFile$datapath, col_names = FALSE,skip = skipNum)
+    
+    #Convert to Date
+    dfb$X1 <- as.Date(dfb$X1, format = "%m/%d/%Y")
+    
     #Create Df names
-    names(dfb) <- c("close","address","street","price","buyer_company", "buyer_agent"
-                     ,"seller_agent","seller_company","x9","x10")
-   
+    names(dfb) <- c("close","address","street","price","seller_company", "seller_agent"
+                     ,"buyer_agent","buyer_company","x9","x10")
+    
+    #Create the DF with only the needed information
      buyerlist <- data.frame()
     (for(i in 1:nrow(dfb)){
       if(strcmp(dfb$buyer_company[i],dfb$seller_company[i])){
@@ -98,16 +104,21 @@ server = function(input, output, session){
         buyerlist[i,1] <- c("")
       }
     })
-    dfb$note <- buyerlist
-    dfb$side <- c("Buyer")
+
+    #Create DF for needed columns 
+    buyer <- data.frame(stringsAsFactors = FALSE,
+                        close = as.factor((dfb$close)),
+                        month = substr(dfb$close, 6, 7),
+                        address = (dfb$address),
+                        street = (dfb$street),
+                        side = c("Buyer"),
+                        lhi_agent = (dfb$buyer_agent),
+                        company = (dfb$buyer_company),
+                        price = (dfb$price)
+                        ,notes = buyerlist
+    )
     
-    
-    #Not needed in Demo2 since we are taking the file from the source
-    # dfb <- dfb %>%
-    #   filter(lhi_agent != 'TOTAL') %>%
-    #   filter(side != 'NA')
-    
-    dfb
+    buyer
     
   })
   
@@ -121,9 +132,13 @@ server = function(input, output, session){
     
     
     dfs <- read_csv(inFile$datapath, col_names = FALSE,skip = skipNum)
-    names(dfs) <- c("close","address","street","price","buyer_company", "buyer_agent"
-                    ,"seller_agent","seller_company","x9","x10")
+    #Convert to Date
+    dfs$X1 <- as.Date(dfs$X1, format = "%m/%d/%Y")
+   
+    names(dfs) <- c("close","address","street","price","seller_company", "seller_agent"
+                    ,"buyer_agent","buyer_company","x9","x10")
     
+    #Find out if this is a dual sale
     sellerlist <- data.frame()
     (for(i in 1:nrow(dfs)){
       if(strcmp(dfs$buyer_company[i],dfs$seller_company[i])){
@@ -133,12 +148,20 @@ server = function(input, output, session){
       }
     })
     
-    dfs$note <- sellerlist
-    dfs$side <- c("Seller")
-    
-    #deleted filter expressions
-    
-    dfs
+    #Create the DF with the needed information
+    seller <- data.frame(stringsAsFactors = FALSE,
+                         close = as.factor((dfs$close)),
+                         month = substr(dfs$close, 6, 7),
+                         address = (dfs$address),
+                         street = (dfs$street),
+                         side = c("Seller"),
+                         lhi_agent = (dfs$seller_agent),
+                         company = (dfs$seller_company),
+                         price = (dfs$price)
+                         ,notes = sellerlist
+                         )
+
+    seller
     
   })
   
@@ -146,9 +169,8 @@ server = function(input, output, session){
   dollarsales <- reactive({
     
     df1 <- values$dfglobal %>%
-      group_by(lhi_agent) %>%
-      summarize(Total = sum(price)) %>%
-      mutate(lhi_agent= fct_reorder(lhi_agent, Total))
+      group_by(lhi_agent, side) %>%
+      summarize(Total = sum(price))
     
     df1
     
@@ -174,6 +196,26 @@ server = function(input, output, session){
     
   })
   
+  #Create the DF the summarizes the agent sales by the month
+  monthsales <- reactive ({
+    
+    df4 <- values$dfglobal %>%
+      group_by(month) %>%
+      summarize(Total = n())
+    df4
+      
+  })
+  
+  #Create the DF the summarizes the agent sales by the month
+  monthdollars <- reactive ({
+    
+    df5 <- values$dfglobal %>%
+      group_by(month) %>%
+      summarize(Total = sum(price))
+    df5
+    
+  })
+  
   #This helps to display part of the file
   output$contents <- renderTable({
     previewTableb()
@@ -181,20 +223,23 @@ server = function(input, output, session){
   
   #This will display the entire file
   #----------------------------------------------Only needed for testing purposes-----------------
+  # But check with Patrick if he wants to see this or have it hidden
   output$contents1 <- renderTable({
-    
+
     values$dfglobal
-    
+
   })
   #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^Only needed for testing purpose^^^^^^^^^^^^^^^^^^^^
   
   
   
   #This plots the total dollars of sales by agent
-  output$summary <- renderPlot({
+  output$summary <- renderPlotly({
     
-    ggplot(dollarsales(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+    ggplotly(
+    ggplot(dollarsales(), aes(x = reorder(lhi_agent, Total), y = Total, fill = side))+geom_bar(stat="identity", position = "stack")+
       ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales") + coord_flip()
+    )
     #https://ggplot2.tidyverse.org/reference/labs.html
     
   })
@@ -202,7 +247,7 @@ server = function(input, output, session){
   #This plots the Number of sales by Agent
   output$summaryCount <- renderPlot({
     
-    ggplot(numberofsales(), aes(x = lhi_agent, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+    ggplot(numberofsales(), aes(x = reorder(lhi_agent, Total), y = Total))+geom_bar(stat="identity", fill="steelblue")+
       ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales") + coord_flip()
     
   })
@@ -213,6 +258,25 @@ server = function(input, output, session){
     ggplot(sidesales(), aes(x = side, y = Total))+geom_bar(stat="identity", fill="steelblue")+
       ggtitle("Yearly Sales") + labs(x = "Agent Names", y = "Total Sales")
     
+  })
+  
+  #This plots the number of sales by month
+  output$summarymonth <- renderPlotly({
+    
+    ggplotly(
+    ggplot(monthsales(), aes(x = month, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Sales by Month") + labs(x = "Month", y = "Sales Volume")
+    )
+  })
+  
+  #This plots the dollar of sales by month
+  output$summarydollarmonths<- renderPlotly({
+    
+    ggplotly(
+    ggplot(monthdollars(), aes(x = month, y = Total))+geom_bar(stat="identity", fill="steelblue")+
+      ggtitle("Sales by Month") + labs(x = "Month", y = "Sales in Dollars ($1,000s)")+
+      scale_y_continuous(name="Sales in Dollars", labels = comma)
+    )
   })
 }
 # Run the application 

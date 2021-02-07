@@ -1,0 +1,356 @@
+#
+# This is the server logic of a Shiny web application. You can run the 
+# application by clicking 'Run App' above.
+#
+# Find out more about building applications with Shiny here:
+# 
+#    http://shiny.rstudio.com/
+#
+#Load the library
+library(shiny)
+library(googlesheets)
+library(dplyr)
+library(ggplot2)
+library(rdrop2)
+library(network)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(forcats)
+library(scales)
+library(treemap)
+library(tidyverse)
+library(pivottabler)
+
+# Define server logic required to draw a histogram
+server = function(input, output, session) {
+  
+  #Store the auth token
+  token <- drop_auth()
+  saveRDS(token, file = "token.rds")
+  
+  values <- reactiveValues()
+  values$df <- data.frame(gamedate = character(), 
+                          gameNumber = character(),
+                          Winner1 = character(), 
+                          winner2 = character(),
+                          loser1 = character(),
+                          loser2 = character(),
+                          scoreW = character(),
+                          scoreL = character(),
+                          stringsAsFactors = FALSE)
+  
+  newEntry <- observeEvent(input$save, {
+    values$df <- rbind(values$df,
+                       data.frame(stringsAsFactors = FALSE,
+                                  gameDate = (input$date),
+                                  gameNumber = (input$game),
+                                  winner1 = (input$teamW1),
+                                  winner2 = (input$teamW2),
+                                  loser1 = (input$teamL1),
+                                  loser2 = (input$teamL2),
+                                  scoreW = as.numeric(input$scoreW),
+                                  scoreL = as.numeric(input$scoreL)
+                       )
+    )
+  })
+  
+#-------------------------Output Section for UI--------------------
+  output$table1 <- renderTable({
+    values$df
+  })
+
+  output$table2 <- renderTable({
+   stat_df()
+  })
+   # output$table2 <- renderPivottabler({ #Blanked out until shiny.io can handle this
+      #Dont forget to uncomment the section below that renders the pivot table
+   #   stat_df()
+   # })
+
+  output$table3 <- renderTable({
+    player_stat_df()
+  })
+  
+  #Output directory for dropbox
+  outputDir <- "OCC Volleyball responses"
+  
+  saveData_DB <- function(data) { #Function for saving and exporting data to drop box
+    
+    # Create a unique file name
+    fileName <- sprintf("%s_%s.csv", as.integer(Sys.time()), "beach volleyball")
+    
+    # Write the data to a temporary file locally
+    filePath <- file.path(tempdir(), fileName)
+    write.csv(data, filePath, row.names = FALSE, quote = TRUE)
+    
+    # Upload the file to Dropbox
+    drop_upload(filePath, path = outputDir)
+  }
+  
+  loadData_DB <- function(file) #Create a function to load in the previous files
+    {
+    # Read all the files into a list
+    filesInfo <- drop_dir(outputDir)
+    filePaths <- filesInfo$path_display
+    data <- lapply(filePaths, drop_read_csv, stringsAsFactors = FALSE)
+    # Concatenate all data together into one data.frame
+    data <- do.call(rbind, data)
+    data<- unique( data[ , 1:8 ] )
+    
+    #Now data cleanse the entries
+    data$winner1[data$winner1 %in% c('pat','Pat')] <- "Patrick"
+    data$winner2[data$winner2 %in% c('pat','Pat')] <- "Patrick"
+    data$loser1[data$loser1 %in% c('pat','Pat')] <- "Patrick"
+    data$loser2[data$loser2 %in% c('pat','Pat')] <- "Patrick"
+    
+    #Order the DF by date
+    data <- data[order(data$gameDate, data$gameNumber),]
+    
+    values$df <- data
+    
+  }
+  
+  #Save Data to the local drive ------THis is for testing purposes
+  # outputDir <- ".."
+  # saveData_local <- function(data){
+  #   data <- t(values$df)
+  #   fileName <- sprintf("%s_%s.csv", as.integer(Sys.time()), "Sideout")
+  #   write.csv(x = values$df, file = file.path(outputDir, fileName),
+  #             row.names = FALSE, quote = TRUE, col.names = TRUE)
+  #   print("saved")
+  #   output$saveMsg <- renderText({
+  #     paste("Saved at ",as.character(Sys.time()))
+  #   })
+  # }
+  
+  #Looks for the click on the save button and calls the saveData function
+  callSaveData <- observeEvent(input$save, {
+    saveData_DB(values$df)
+    saveData_DB(values$df)
+  })
+  
+  #Looks for the click on the load button and calls the loadData_DB function
+  callLoadData <- observeEvent(input$load, {
+    loadData_DB()
+  })
+  
+  
+  #Delete the last row of data
+  undoLastEntry <- function(data){
+    values$df <- slice(values$df, 1:(n()-1))
+  }
+  
+  
+  #Looks for the click on the save button and calls the undoLastEntry function
+  callUndoLastEntry <- observeEvent(input$undo, {
+    undoLastEntry()
+  })
+  
+  #Create a function to load data needed for the winning dataframe
+  createWinDF <- function(){
+    
+    #Call the load data function to get the previous data loaded if it was not already clicked
+    loadData_DB()
+    
+    #load the values df into its own df to manipulate
+    df <- values$df
+    
+    gameid_string <- df$gameNumber
+    winner_string <- df$winner1
+    winnerp_string <- df$winner2
+    winnerscore_string <- df$scoreW
+    
+    #Create the first data frame with the first winner listed
+    df_win1 <- data.frame(stringsAsFactors = FALSE,
+                          gameid = gameid_string,
+                          winner = winner_string,
+                          winnerp = winnerp_string,
+                          winnerscore = winnerscore_string)
+    #Create the second data frame to capture the second winner listed
+    df_win2 <- data.frame(stringsAsFactors = FALSE,
+                          gameid = gameid_string,
+                          winner = winnerp_string,
+                          winnerp = winner_string,
+                          winnerscore = winnerscore_string)
+    
+    #convert the winners into characters for the network anlysis
+    df_win1$winner <- as.character(df_win1$winner)
+    df_win1$winnerp <- as.character(df_win1$winnerp)
+    df_win2$winner <- as.character(df_win2$winner)
+    df_win2$winnerp <- as.character(df_win2$winnerp)
+    
+    #combine the dataframe of winners into one so there is one line for each winner
+    df_win <- rbind(df_win1, df_win2, df_win1, df_win2)
+    
+    df_win
+  }
+  
+  createLoseDF <- function(){
+    #Call the load data function to get the previous data loaded if it was not already clicked
+    loadData_DB()
+    
+    #load the values df into its own df to manipulate
+    df <- values$df
+    
+    gameid_string <- df$gameNumber
+    loser_string <- df$loser1
+    loserp_string <- df$loser2
+    loserscore_string <- df$scoreL
+    
+    #Create the first data frame with the first winner listed
+    df_lose1 <- data.frame(stringsAsFactors = FALSE,
+                          gameid = gameid_string,
+                          loser = loser_string,
+                          loserp = loserp_string,
+                          loserscore = loserscore_string)
+    #Create the second data frame to capture the second winner listed
+    df_lose2 <- data.frame(stringsAsFactors = FALSE,
+                          gameid = gameid_string,
+                          loser = loserp_string,
+                          loserp = loser_string,
+                          loserscore = loserscore_string)
+    
+    #convert the winners into characters for the network anlysis
+    df_lose1$loser <- as.character(df_lose1$loser)
+    df_lose1$loserp <- as.character(df_lose1$loserp)
+    df_lose2$loser <- as.character(df_lose2$loser)
+    df_lose2$loserp <- as.character(df_lose2$loserp)
+    
+    #combine the dataframe of winners into one so there is one line for each winner
+    df_lose <- rbind(df_lose1, df_lose1, df_lose2, df_lose2)
+    
+    df_lose
+  }
+  
+  #----------------- Team Stat Section start----------------------------
+  #Create win % section
+  #Create a matrix on wins with person
+  
+  stat_df <- reactive({
+  
+    df_win <- createWinDF() #Load the win df
+    df_lose <- createLoseDF() #load the lose df
+    
+    df_win_lose <- cbind(df_win, df_lose)
+    df_win_lose <- df_win_lose[-c(5)] #Remove duplicate Game ID column
+    
+    df_win_lose <- df_win_lose %>%
+      group_by(winner, loser) %>%
+      summarise(Win = n()) %>%
+      filter(Win >= 1) #Has to have more than x wins to show up
+    
+  #Comment this section out when Shiny.io can handle the code below  
+    df_win_lose_pivot <- df_win_lose %>% pivot_wider(names_from = winner, values_from = Win)
+    df_win_lose_pivot
+  #Comment this section out until Shiny.io can handle - End
+    
+  #Comment this section out until Shiny.io can handle
+    #Remember to uncomment the renderpivot section above and the render table in the UI
+    # pt <- PivotTable$new()
+    # pt$addData(df_win_lose)
+    # pt$addColumnDataGroups("winner")
+    # pt$addRowDataGroups("loser")
+    # pt$defineCalculation(calculationName="TotalWins", summariseExpression="n()")
+    # pt$renderPivot()
+  #Comment this section out until Shiny.io can handle - End
+  
+  
+  })
+  
+  #----------------- Team Stat Section End------------------------------
+  
+  #----------------- Individual Stat Section Start------------------------------
+  player_stat_df <- reactive({
+    df_win <- createWinDF() #Load the win df
+    df_lose <- createLoseDF() #load the lose df
+    
+    df_win_lose <- cbind(df_win, df_lose)
+    df_win_lose <- df_win_lose[-c(5)] #Remove duplicate Game ID column
+    df_win_lose <- cbind(df_win, df_lose)
+    #Drop game ID because it can only have one column named gameid
+    df_win_lose <- df_win_lose[-c(5)]
+    
+    #Only select the winner and loser
+    df_win_lose <- select(df_win_lose, "winner", "loser")
+    
+    #Create individual win loss df and then join them together
+    df_win_count <- df_win_lose %>% group_by(winner) %>% summarise(wins = n())
+    df_lose_count <- df_win_lose %>% group_by(loser) %>% summarise(losses = n())
+    
+    #Join the df together and create the win percentages
+    df_win_percent <- merge(df_win_count, df_lose_count, by=1) %>%
+      mutate(win_percentage = wins/(wins+losses))
+    
+    #Rename the columns so they present nicer
+    colnames(df_win_percent) <- c("Player", "Wins", "Losses", "Win Percentage")
+  
+    df_win_percent
+  
+  })
+  #----------------- Individual Stat Section  End------------------------------
+  
+  #-----------------Winning Team Analysis Start------------------------------
+  #Create network analysis to see who has the most wins with each partner
+  network_analysis <- reactive ({
+    
+    #Load data section for network anaysis
+    df_win <- createWinDF()
+    #End data load section for network analysis
+    
+    #Start to transform data for analysis
+    network_data_win <- select(df_win, "winner", 'winnerp', 'winnerscore')
+    
+    sources <- network_data_win %>% distinct(winner) %>%
+      rename(label = winner)
+    
+    destinations <- network_data_win %>% distinct(winnerp) %>%
+      rename(label = winnerp)
+    
+    nodes <- full_join(sources, destinations, by = 'label')
+    nodes <- nodes %>% rowid_to_column("id")
+    
+    #Then join on the connections between agents as the edge in network graphing
+    
+    per_route <- network_data_win %>%
+      group_by(winner,winnerp) %>%
+      summarise(weight = n()) %>%
+      ungroup()
+    
+    edges <- per_route %>%
+      left_join(nodes, by =c("winner"="label")) %>%
+      rename(from=id)
+    
+    edges <- edges %>%
+      left_join(nodes, by =c("winnerp"="label")) %>%
+      rename(to=id)
+    
+    edges<- select(edges, from, to , weight)
+    
+    #Network transforms the data from a ordinary DF to one where there are relationships between the elelments.
+    routes_network <- network(edges, vertex.attr = nodes, matrix.type = "edgelist",ignore.eval=FALSE)
+    
+    routes_tidy<- tbl_graph(nodes=nodes,edges=edges,directed = TRUE)
+    
+    #Put the network graph together
+    p <-ggraph(routes_tidy, layout = "graphopt") +
+      geom_node_point() +
+      geom_edge_link(aes(width = weight), alpha = 0.8) +
+      scale_edge_width(range = c(0.2, 2)) +
+      geom_node_text(aes(label = label), repel = TRUE) +
+      labs(edge_width = "weight") +
+      theme_graph()
+    
+    p
+    
+  })
+  
+  #-----------------Winning Team Analysis End------------------------------
+  
+  #Output the network plot
+  
+  output$networkPlot <- renderPlot({
+    network_analysis()
+  })
+  
+}

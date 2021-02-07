@@ -1,0 +1,40 @@
+library(shiny)
+
+fluidPage(
+  titlePanel("OCC Volleyball Game Tracker"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      textInput("date", "Date", Sys.Date()-1),#format(Sys.Date(), tz="America/Los_Angeles",usetz=TRUE)), 
+      textInput("game", "Game Number", ""),
+      textInput("teamW1", "Winning Team Player 1", ""),
+      textInput("teamW2", "Winning Team Player 2", ""),
+      textInput("teamL1", "Losing Team Player 1", ""),
+      textInput("teamL2", "Losing Team Player 2", ""),
+      textInput("scoreW", "Winning Team Score", ""),
+      textInput("scoreL", "Losing Team Score", ""),
+      actionButton("load", "Load Previous Data"),
+      actionButton("save", "Save Data"),
+      textOutput("saveMsg")
+    ),
+    
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Games", tableOutput("table1")),
+        tabPanel("Win Loss Stats", tableOutput("table2")),
+        tabPanel("Player Stats", tableOutput("table3")),
+        #tabPanel("Win Loss Stats", pivottablerOutput("table2")), #blanked out until shiny.io can handle
+        tabPanel("Winning Team Analysis", plotOutput("networkPlot"))
+        
+      )
+    )))
+
+#------------------------------------Possible stats to show--------------------------------------------
+#Biggest winner
+#Biggest Loser
+#How many points scored
+#How many points given up
+#Person you most lost to
+#Person you beat the most
+#Longest win streak
+

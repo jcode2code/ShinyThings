@@ -72,6 +72,10 @@ server = function(input, output, session) {
     player_stat_df()
   })
   
+  output$table4 <- renderTable({
+    test_df()
+  })
+  
   #Output directory for dropbox
   outputDir <- "OCC Volleyball responses"
   
@@ -181,7 +185,7 @@ server = function(input, output, session) {
     df_win2$winnerp <- as.character(df_win2$winnerp)
     
     #combine the dataframe of winners into one so there is one line for each winner
-    df_win <- rbind(df_win1, df_win2, df_win1, df_win2)
+    df_win <- rbind(df_win1, df_win2)
     
     df_win
   }
@@ -217,13 +221,13 @@ server = function(input, output, session) {
     df_lose2$loser <- as.character(df_lose2$loser)
     df_lose2$loserp <- as.character(df_lose2$loserp)
     
-    #combine the dataframe of winners into one so there is one line for each winner
-    df_lose <- rbind(df_lose1, df_lose1, df_lose2, df_lose2)
+    #combine the dataframe of losers into one so there is one line for each loser
+    df_lose <- rbind(df_lose1, df_lose2)
     
     df_lose
   }
   
-  #----------------- Team Stat Section start----------------------------
+   #----------------- Team Stat Section start----------------------------
   #Create win % section
   #Create a matrix on wins with person
   

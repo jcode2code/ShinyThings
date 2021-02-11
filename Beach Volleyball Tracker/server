@@ -185,7 +185,7 @@ server = function(input, output, session) {
     df_win2$winnerp <- as.character(df_win2$winnerp)
     
     #combine the dataframe of winners into one so there is one line for each winner
-    df_win <- rbind(df_win1, df_win2)
+    df_win <- rbind(df_win1, df_win2, df_win2, df_win1) #Needs to repeat in this order to get combination of win/lose
     
     df_win
   }
@@ -222,7 +222,7 @@ server = function(input, output, session) {
     df_lose2$loserp <- as.character(df_lose2$loserp)
     
     #combine the dataframe of losers into one so there is one line for each loser
-    df_lose <- rbind(df_lose1, df_lose2)
+    df_lose <- rbind(df_lose1, df_lose2, df_lose1, df_lose2) # Need to repeat to have all winners and losers counted
     
     df_lose
   }
@@ -241,8 +241,7 @@ server = function(input, output, session) {
     
     df_win_lose <- df_win_lose %>%
       group_by(winner, loser) %>%
-      summarise(Win = n()) %>%
-      filter(Win >= 1) #Has to have more than x wins to show up
+      summarise(Win = n()) 
     
   #Comment this section out when Shiny.io can handle the code below  
     df_win_lose_pivot <- df_win_lose %>% pivot_wider(names_from = winner, values_from = Win)
@@ -279,8 +278,8 @@ server = function(input, output, session) {
     df_win_lose <- select(df_win_lose, "winner", "loser")
     
     #Create individual win loss df and then join them together
-    df_win_count <- df_win_lose %>% group_by(winner) %>% summarise(wins = n())
-    df_lose_count <- df_win_lose %>% group_by(loser) %>% summarise(losses = n())
+    df_win_count <- df_win_lose %>% group_by(winner) %>% summarise(wins = n()/2)
+    df_lose_count <- df_win_lose %>% group_by(loser) %>% summarise(losses = n()/2)
     
     #Join the df together and create the win percentages
     df_win_percent <- merge(df_win_count, df_lose_count, by=1) %>%

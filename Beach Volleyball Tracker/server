@@ -12,6 +12,7 @@ library(googlesheets)
 library(dplyr)
 library(ggplot2)
 library(rdrop2)
+library(sqldf)
 library(network)
 library(igraph)
 library(tidygraph)
@@ -75,6 +76,17 @@ server = function(input, output, session) {
   output$table4 <- renderTable({
     test_df()
   })
+  
+  output$table5 <- renderTable({
+    createScoreStats()
+  })
+  
+  #Output the network plot
+  
+  output$networkPlot <- renderPlot({
+    network_analysis()
+  })
+  
   
   #Output directory for dropbox
   outputDir <- "OCC Volleyball responses"
@@ -350,10 +362,54 @@ server = function(input, output, session) {
   
   #-----------------Winning Team Analysis End------------------------------
   
-  #Output the network plot
+
+#--------------------------Largest Loss--------------------------------------
+#Players largest loss, biggest win
+#Player average on winning score
+#Player average on loosing score
+#Player on average on allowing points scored
+
+createScoreStats <- reactive({
+
+  #Load in the data
+  loadData_DB()
+
+  #load the values df into its own df to manipulate
+  df <- values$df
+
+  #Winners
+  df1 <- df$winner1
+  df2 <- df$winner2
   
-  output$networkPlot <- renderPlot({
-    network_analysis()
-  })
+  #Losers
+  df3 <- df$loser1
+  df4 <- df$loser2
+
+  #Create df to hold the winners
+  df1 <- data.frame(Winner = df$winner1, score = df$scoreW)
+  df2 <- data.frame(Winner = df$winner2, score = df$scoreW)
+
+  #Create df to hold the losers
+  df3 <- data.frame(Loser = df$loser1, score = df$scoreL)
+  df4 <- data.frame(Loser = df$loser2, score = df$scoreL)
   
-}
+  #Combine the df together
+  df1 <- rbind(df1, df2)
+  df2 <- rbind(df3, df4)
+
+
+  df_win_score <- df1 %>% group_by(Winner) %>%
+    summarise('Highest Win Score' = max(score))
+
+  df_lose_score <- df2 %>% group_by(Loser) %>%
+    summarise('Lowest Loser Score' = min(score))
+  
+  
+  df_scores <- sqldf('SELECT Winner, "Lowest Loser Score", "Highest Win Score"
+        FROM df_win_score a left join df_lose_score b on a.Winner = b.Loser  ')
+  
+  
+  df_scores
+})
+
+} #End Bracket for Server Script

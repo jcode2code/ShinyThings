@@ -21,14 +21,15 @@ fluidPage(
     mainPanel(
       tabsetPanel(
         tabPanel("Games", tableOutput("table1")),
-        tabPanel("Win Loss Stats", tableOutput("table2")),
-        tabPanel("Player Stats", tableOutput("table3")),
-        tabPanel("Player Scores", tableOutput("table5")),
+        tabPanel("Win Loss Table", tableOutput("table2")),
+        tabPanel("Win Loss Stats", tableOutput("table3")),
+        #tabPanel("Player Scores", tableOutput("table5")),
         #tabPanel("Win Loss Stats", pivottablerOutput("table2")), #blanked out until shiny.io can handle
-        tabPanel("Winning Team Analysis", plotOutput("networkPlot")),
-        tabPanel("Summary",
-                 fluidRow(column(4,
-                                 tableOutput("table5"))))
+        tabPanel("Winning Team Analysis", plotOutput("networkPlot"))
+        #Comment out the tabpanel summary just to check if table output will work with fluid row. Use this to handle two tables on 1 page
+        # tabPanel("Summary",
+        #          fluidRow(column(4,
+        #                          tableOutput("table5"))))
                           
                           
         
